@@ -80,6 +80,9 @@ def _get_object_fields(obj) -> dict:
         }
     elif isinstance(obj, dict):
         return obj
+    elif isinstance(obj, tuple):
+        names = [f"item{i}" for i in range(len(obj))]
+        return dict(zip(names, obj))
     elif obj is None:
         return {}
     else:
@@ -116,19 +119,29 @@ def _tensordict_to_object(tensordict: TensorDictBase, object_example):
     for name, example in _fields.items():
         value = tensordict.get(name, None)
         if isinstance(value, TensorDictBase):
-            t[name] = _tensordict_to_object(value, example)
+            if isinstance(example, tuple):
+                # Make this recursive
+                l = [jax_dlpack.from_dlpack(torch_dlpack.to_dlpack(val.contiguous()))
+                        .reshape(example[i].shape)
+                        .view(example[i].dtype) for i, val in enumerate(value.values())]
+                t[name] = tuple(l)
+                # return tuple(l)
+            else:
+                t[name] = _tensordict_to_object(value, example)
+                
         elif value is None:
             if isinstance(example, dict):
                 t[name] = _tensordict_to_object({}, example)
+                
             else:
                 t[name] = None
+
         else:
             if value.dtype is torch.bool:
                 value = value.to(torch.uint8)
             value = jax_dlpack.from_dlpack(torch_dlpack.to_dlpack(value.contiguous()))
             t[name] = value.reshape(example.shape).view(example.dtype)
     return type(object_example)(**t)
-
 
 def _extract_spec(data: Union[torch.Tensor, TensorDictBase], key=None) -> TensorSpec:
     if isinstance(data, torch.Tensor):

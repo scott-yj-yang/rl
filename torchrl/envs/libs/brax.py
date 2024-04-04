@@ -208,7 +208,7 @@ class BraxWrapper(_EnvWrapper):
         if "env" not in kwargs:
             raise TypeError("Could not find environment key 'env' in kwargs.")
         env = kwargs["env"]
-        if not isinstance(env, brax.envs.env.Env):
+        if not isinstance(env, brax.envs.base.Env):
             raise TypeError("env is not of type 'brax.envs.env.Env'.")
 
     def _build_env(
